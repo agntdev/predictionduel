@@ -35,530 +35,86 @@
 
 ---
 
-### 2. New Duel Type Selection
-- **Trigger**: `/newduel` or `Create a new duel` from Main Menu.
+### 2. Admin Commands (Restricted)
+- **Trigger**: `/admin_resolve` or `/admin_event` (only for admin users).
 - **Message**:
   ```
-  What kind of event is your duel about?
+  🔐 Admin Panel
+
+  🔹 Manual Resolve Duel /admin_resolve
+  🔹 Create/Update Event /admin_event
   ```
 - **Keyboard**:
   ```
-  [[Crypto], [Sports], [Games], [Weather], [Other]]
+  [[Manual Resolve Duel], [Create/Update Event], [Main Menu]]
   ```
 - **Transitions**:
-  - `Crypto` → `Event Search (Crypto)`
-  - `Sports` → `Event Search (Sports)`
-  - `Games` → `Event Search (Games)`
-  - `Weather` → `Event Search (Weather)`
-  - `Other` → `Manual Event Creation`
+  - `Manual Resolve Duel` → `Admin Resolve Duel`
+  - `Create/Update Event` → `Admin Event Creation`
+  - `Main Menu` → `Main Menu`
 
 ---
 
-### 3. Event Search (Crypto)
-- **Trigger**: `Crypto` from New Duel Type Selection.
+### 3. Admin Resolve Duel
+- **Trigger**: `/admin_resolve` from Admin Panel.
 - **Message**:
   ```
-  🔍 Search for a crypto event (e.g., BTC, ETH, etc.):
+  🔧 Enter duel ID and outcome to resolve manually:
+  Format: <duel_id> <outcome>
   ```
 - **Keyboard**:
   ```
   [[Cancel]]
   ```
 - **Transitions**:
-  - User input → `Event Selection (Crypto)`
-  - `Cancel` → `Main Menu`
+  - User input → `Admin Resolve Confirmation`
+  - `Cancel` → `Admin Panel`
 
 ---
 
-### 4. Event Selection (Crypto)
-- **Trigger**: User input from Event Search (Crypto).
+### 4. Admin Event Creation
+- **Trigger**: `/admin_event` from Admin Panel.
 - **Message**:
   ```
-  Here are some crypto events matching your search:
+  🧩 Create/Update an Event
 
-  [Event 1] (ID: 123)
-  [Event 2] (ID: 456)
-  [Event 3] (ID: 789)
-
-  Select an event or type a new one.
-  ```
-- **Keyboard**:
-  ```
-  [[Event 1], [Event 2], [Event 3], [New Event]]
-  ```
-- **Transitions**:
-  - `Event X` → `Duel Title and Description`
-  - `New Event` → `Manual Event Creation`
-
----
-
-### 5. Duel Title and Description
-- **Trigger**: Event selected or manually created.
-- **Message**:
-  ```
-  📝 Enter a title for your duel (1–120 characters):
+  🔹 Type: crypto/sports/games/weather/other
+  🔹 Source Ref: (free text)
+  🔹 Event At: (ISO date)
   ```
 - **Keyboard**:
   ```
   [[Cancel]]
   ```
 - **Transitions**:
-  - User input → `Duel Description`
-  - `Cancel` → `Main Menu`
-
----
-
-### 6. Duel Description
-- **Trigger**: Title input.
-- **Message**:
-  ```
-  📝 Enter a description for your duel (≤ 500 characters):
-  ```
-- **Keyboard**:
-  ```
-  [[Cancel]]
-  ```
-- **Transitions**:
-  - User input → `Duel Deadline`
-  - `Cancel` → `Main Menu`
-
----
-
-### 7. Duel Deadline
-- **Trigger**: Description input.
-- **Message**:
-  ```
-  ⏰ When should this duel close? (Must be before the event date.)
-  Format: ISO date (e.g., 2025-04-05T14:30:00Z) or relative (e.g., in 3h)
-  ```
-- **Keyboard**:
-  ```
-  [[Cancel]]
-  ```
-- **Transitions**:
-  - User input → `Duel Outcome Options`
-  - `Cancel` → `Main Menu`
-
----
-
-### 8. Duel Outcome Options
-- **Trigger**: Deadline input.
-- **Message**:
-  ```
-  🎯 What are the possible outcomes for this duel? (2–6 options, comma-separated)
-  Example: yes,no or home,away,draw
-  ```
-- **Keyboard**:
-  ```
-  [[Cancel]]
-  ```
-- **Transitions**:
-  - User input → `Duel Confirmation`
-  - `Cancel` → `Main Menu`
-
----
-
-### 9. Duel Confirmation
-- **Trigger**: Outcome options input.
-- **Message**:
-  ```
-  ✅ Confirm your duel:
-
-  🎯 Title: [Title]
-  📝 Description: [Description]
-  📅 Deadline: [Deadline]
-  🎲 Outcomes: [Outcome 1], [Outcome 2], [Outcome 3], ...
-
-  Are you sure you want to create this duel?
-  ```
-- **Keyboard**:
-  ```
-  [[Confirm], [Cancel]]
-  ```
-- **Transitions**:
-  - `Confirm` → `Duel Created`
-  - `Cancel` → `Main Menu`
-
----
-
-### 10. Duel Created
-- **Trigger**: Confirmation accepted.
-- **Message**:
-  ```
-  🎉 Duel #N created!
-
-  Share it with others: /duel N
-  ```
-- **Keyboard**:
-  ```
-  [[Main Menu]]
-  ```
-- **Transitions**:
-  - `Main Menu` → `Main Menu`
-
----
-
-### 11. Duel List (Open)
-- **Trigger**: `/duels` or `View active duels` from Main Menu.
-- **Message**:
-  ```
-  ⚔️ Active Duels
-
-  Filter by type:
-  ```
-- **Keyboard**:
-  ```
-  [[Crypto], [Sports], [Games], [Weather], [All]]
-  ```
-- **Transitions**:
-  - `Crypto` → `Duel List (Crypto)`
-  - `Sports` → `Duel List (Sports)`
-  - `Games` → `Duel List (Games)`
-  - `Weather` → `Duel List (Weather)`
-  - `All` → `Duel List (All)`
-
----
-
-### 12. Duel List (Crypto)
-- **Trigger**: `Crypto` from Duel List (Open).
-- **Message**:
-  ```
-  ⚔️ Active Crypto Duels
-
-  [Duel 1] · [Title] · Closes in [Time] · [Participants]
-  [Duel 2] · [Title] · Closes in [Time] · [Participants]
-  ...
-  ```
-- **Keyboard**:
-  ```
-  [[Next Page], [Main Menu]]
-  ```
-- **Transitions**:
-  - `Next Page` → `Duel List (Crypto) Page 2`
-  - `Main Menu` → `Main Menu`
-
----
-
-### 13. Duel Card
-- **Trigger**: `Duel X` from Duel List.
-- **Message**:
-  ```
-  ⚔️ Duel #N: [Title]
-
-  📝 [Description]
-  📅 Closes in [Time]
-  🎲 Outcomes: [Outcome 1], [Outcome 2], [Outcome 3], ...
-  🧑‍🤝‍🧑 Participants: [Count]
-
-  Your pick: [Outcome] · Stake: [N] points
-  ```
-- **Keyboard**:
-  ```
-  [[🎯 Pick], [📊 Stats], [🔔 Remind me at deadline], [Main Menu]]
-  ```
-- **Transitions**:
-  - `🎯 Pick` → `Prediction Selection`
-  - `📊 Stats` → `Duel Stats`
-  - `🔔 Remind me at deadline` → `Reminder Set`
-  - `Main Menu` → `Main Menu`
-
----
-
-### 14. Prediction Selection
-- **Trigger**: `🎯 Pick` from Duel Card.
-- **Message**:
-  ```
-  🎯 Choose your prediction:
-
-  [Outcome 1]
-  [Outcome 2]
-  [Outcome 3]
-  ...
-  ```
-- **Keyboard**:
-  ```
-  [[Outcome 1], [Outcome 2], [Outcome 3], [Cancel]]
-  ```
-- **Transitions**:
-  - `Outcome X` → `Stake Selection`
-  - `Cancel` → `Duel Card`
-
----
-
-### 15. Stake Selection
-- **Trigger**: Outcome selected.
-- **Message**:
-  ```
-  💰 Stake your points:
-
-  [0] [10] [25] [50] [100] [Custom]
-  ```
-- **Keyboard**:
-  ```
-  [[0], [10], [25], [50], [100], [Custom], [Cancel]]
-  ```
-- **Transitions**:
-  - `0` → `Prediction Confirmation`
-  - `10` → `Prediction Confirmation`
-  - `25` → `Prediction Confirmation`
-  - `50` → `Prediction Confirmation`
-  - `100` → `Prediction Confirmation`
-  - `Custom` → `Custom Stake Input`
-  - `Cancel` → `Duel Card`
-
----
-
-### 16. Custom Stake Input
-- **Trigger**: `Custom` from Stake Selection.
-- **Message**:
-  ```
-  💰 Enter a custom stake (0–10,000 points):
-  ```
-- **Keyboard**:
-  ```
-  [[Cancel]]
-  ```
-- **Transitions**:
-  - User input → `Prediction Confirmation`
-  - `Cancel` → `Stake Selection`
-
----
-
-### 17. Prediction Confirmation
-- **Trigger**: Stake selected.
-- **Message**:
-  ```
-  ✅ Confirm your prediction:
-
-  🎯 Outcome: [Outcome]
-  💰 Stake: [N] points
-
-  Are you sure?
-  ```
-- **Keyboard**:
-  ```
-  [[Confirm], [Cancel]]
-  ```
-- **Transitions**:
-  - `Confirm` → `Prediction Locked`
-  - `Cancel` → `Duel Card`
-
----
-
-### 18. Prediction Locked
-- **Trigger**: Prediction confirmed.
-- **Message**:
-  ```
-  🔐 Locked in: [Outcome] for [N] points.
-
-  Good luck!
-  ```
-- **Keyboard**:
-  ```
-  [[Main Menu]]
-  ```
-- **Transitions**:
-  - `Main Menu` → `Main Menu`
-
----
-
-### 19. My Predictions (Pending/Won/Lost)
-- **Trigger**: `/mypreds` or `View your predictions` from Main Menu.
-- **Message**:
-  ```
-  🧾 My Predictions
-
-  🔹 Pending (N)
-  🔹 Won (M)
-  🔹 Lost (K)
-  ```
-- **Keyboard**:
-  ```
-  [[Pending], [Won], [Lost], [Main Menu]]
-  ```
-- **Transitions**:
-  - `Pending` → `Pending Predictions`
-  - `Won` → `Won Predictions`
-  - `Lost` → `Lost Predictions`
-  - `Main Menu` → `Main Menu`
-
----
-
-### 20. Pending Predictions
-- **Trigger**: `Pending` from My Predictions.
-- **Message**:
-  ```
-  ⏳ Pending Predictions
-
-  [Duel 1] · [Title] · Closes in [Time] · [Outcome] · Stake: [N]
-  [Duel 2] · [Title] · Closes in [Time] · [Outcome] · Stake: [N]
-  ...
-  ```
-- **Keyboard**:
-  ```
-  [[Next Page], [Main Menu]]
-  ```
-- **Transitions**:
-  - `Next Page` → `Pending Predictions Page 2`
-  - `Main Menu` → `Main Menu`
-
----
-
-### 21. Duel History
-- **Trigger**: `/history` or `View duel history` from Main Menu.
-- **Message**:
-  ```
-  📜 Duel History
-
-  [Duel 1] · [Title] · [Outcome] · [Your Pick] · [Result]
-  [Duel 2] · [Title] · [Outcome] · [Your Pick] · [Result]
-  ...
-  ```
-- **Keyboard**:
-  ```
-  [[Next Page], [Main Menu]]
-  ```
-- **Transitions**:
-  - `Next Page` → `Duel History Page 2`
-  - `Main Menu` → `Main Menu`
-
----
-
-### 22. Leaderboard
-- **Trigger**: `/leaderboard` or `View leaderboard` from Main Menu.
-- **Message**:
-  ```
-  🏆 Leaderboard (Top 20)
-
-  1. [Name] · 1240 (87% acc · 52 picks)
-  2. [Name] · 1180 (82% acc · 45 picks)
-  ...
-  ```
-- **Keyboard**:
-  ```
-  [[Next Page], [Main Menu]]
-  ```
-- **Transitions**:
-  - `Next Page` → `Leaderboard Page 2`
-  - `Main Menu` → `Main Menu`
-
----
-
-### 23. Challenge Top Predictor
-- **Trigger**: `/challenge` or `Challenge a top predictor` from Main Menu.
-- **Message**:
-  ```
-  🏅 Who would you like to challenge?
-
-  [Top Predictor 1]
-  [Top Predictor 2]
-  [Top Predictor 3]
-  ...
-  ```
-- **Keyboard**:
-  ```
-  [[Top Predictor 1], [Top Predictor 2], [Top Predictor 3], [Cancel]]
-  ```
-- **Transitions**:
-  - `Top Predictor X` → `Challenge Sent`
-  - `Cancel` → `Main Menu`
-
----
-
-### 24. Challenge Sent
-- **Trigger**: Top predictor selected.
-- **Message**:
-  ```
-  🏆 Challenge sent to [Name]!
-
-  They'll receive a notification and can respond with /newduel.
-  ```
-- **Keyboard**:
-  ```
-  [[Main Menu]]
-  ```
-- **Transitions**:
-  - `Main Menu` → `Main Menu`
-
----
-
-### 25. User Stats
-- **Trigger**: `/stats` or `View your stats` from Main Menu.
-- **Message**:
-  ```
-  📊 Your Stats
-
-  Total picks: N
-  Correct: M
-  Accuracy: P%
-  Current streak: S
-  Reputation: R
-  Rank: #K
-  ```
-- **Keyboard**:
-  ```
-  [[Main Menu]]
-  ```
-- **Transitions**:
-  - `Main Menu` → `Main Menu`
-
----
-
-### 26. Export Predictions
-- **Trigger**: `/export` or `Export your data` from Main Menu.
-- **Message**:
-  ```
-  📤 Exporting your prediction history...
-
-  A CSV file with your data is being generated and will be sent to you shortly.
-  ```
-- **Keyboard**:
-  ```
-  [[Main Menu]]
-  ```
-- **Transitions**:
-  - `Main Menu` → `Main Menu`
+  - User input → `Admin Event Confirmation`
+  - `Cancel` → `Admin Panel`
 
 ---
 
 ## COMPONENTS
 
-### 1. Inline Keyboard Generator
-- **Purpose**: Dynamically generate inline keyboards for event selection, duel filtering, and prediction options.
-- **Inputs**:
-  - List of items (e.g., events, outcomes, filters).
-  - Maximum items per row (default 2).
-- **Output**: Telegram inline keyboard with buttons for each item.
+### 1. Resolver Job
+- **Purpose**: Periodically check for resolved events and update duels.
+- **Logic**:
+  - Every 60s, scan all open duels where `deadline <= now`.
+  - Query event source (API or manual) for outcome.
+  - If outcome found: update duel status, calculate reputation deltas, notify users.
+  - If no outcome after 1 hour: mark as unresolved (admin must resolve).
+  - On restart: re-scan all unresolved duels to ensure no missed resolutions.
 
-### 2. Duel Card Renderer
-- **Purpose**: Render a consistent duel card with title, description, deadline, outcome options, and user pick.
-- **Inputs**:
-  - Duel ID, title, description, deadline, outcome options, user pick.
-- **Output**: Formatted message with duel details and inline actions.
+### 2. Prediction Replacement Handler
+- **Purpose**: Allow users to replace predictions before deadline.
+- **Logic**:
+  - On prediction input, check if user already has a prediction for the duel.
+  - If yes: delete existing prediction and stake, insert new ones atomically.
+  - Enforce `deadline > now` check on transaction commit to prevent race conditions.
 
-### 3. Prediction Confirmation Dialog
-- **Purpose**: Confirm a user's prediction and stake before locking it in.
-- **Inputs**:
-  - Outcome, stake amount.
-- **Output**: Confirmation message with inline buttons for confirmation or cancellation.
-
-### 4. Leaderboard Paginator
-- **Purpose**: Paginate the leaderboard to show top 20 users per page.
-- **Inputs**:
-  - Current page number, total users.
-- **Output**: Formatted leaderboard with pagination controls.
-
-### 5. Duel List Paginator
-- **Purpose**: Paginate the list of active duels.
-- **Inputs**:
-  - Current page number, total duels.
-- **Output**: Formatted duel list with pagination controls.
-
-### 6. Reminder Scheduler
-- **Purpose**: Schedule a reminder for the user when a duel's deadline is approaching.
-- **Inputs**:
-  - Duel ID, user ID, deadline.
-- **Output**: Scheduled message to the user at the deadline.
+### 3. Reputation Floor Enforcer
+- **Purpose**: Ensure reputation cannot drop below 0.
+- **Logic**:
+  - On resolution, calculate reputation delta.
+  - Clamp final reputation to `MAX(0, current_reputation + delta)`.
 
 ---
 
@@ -566,22 +122,137 @@
 
 | State | Input | Next State | Side Effects |
 | --- | --- | --- | --- |
-| `Main Menu` | `/newduel` | `New Duel Type Selection` | None |
-| `New Duel Type Selection` | `Crypto` | `Event Search (Crypto)` | None |
-| `Event Search (Crypto)` | User input | `Event Selection (Crypto)` | Query crypto API for events |
-| `Event Selection (Crypto)` | `Event X` | `Duel Title and Description` | Select event |
-| `Duel Title and Description` | User input | `Duel Description` | Store title |
-| `Duel Description` | User input | `Duel Deadline` | Store description |
-| `Duel Deadline` | User input | `Duel Outcome Options` | Store deadline |
-| `Duel Outcome Options` | User input | `Duel Confirmation` | Store outcomes |
-| `Duel Confirmation` | `Confirm` | `Duel Created` | Insert duel into DB |
-| `Main Menu` | `/duels` | `Duel List (Open)` | None |
-| `Duel List (Open)` | `Crypto` | `Duel List (Crypto)` | None |
-| `Duel List (Crypto)` | `Duel X` | `Duel Card` | None |
-| `Duel Card` | `🎯 Pick` | `Prediction Selection` | None |
-| `Prediction Selection` | `Outcome X` | `Stake Selection` | None |
-| `Stake Selection` | `Custom` | `Custom Stake Input` | None |
-| `Custom Stake Input` | User input | `Prediction Confirmation` | Store stake |
-| `Prediction Confirmation` | `Confirm` | `Prediction Locked` | Insert prediction and stake into DB |
-| `Main Menu` | `/mypreds` | `My Predictions (Pending/Won/Lost)` | None |
-| `My Predictions (Pending
+| `Main Menu` | `/admin_resolve` | `Admin Resolve Duel` | None |
+| `Admin Resolve Duel` | User input | `Admin Resolve Confirmation` | Validate duel and outcome |
+| `Admin Resolve Confirmation` | `Confirm` | `Duel Resolved` | Update duel status, calculate reputation, notify users |
+| `Admin Panel` | `/admin_event` | `Admin Event Creation` | None |
+| `Admin Event Creation` | User input | `Admin Event Confirmation` | Insert/update event in DB |
+| `Duel Card` | `🎯 Pick` → `Prediction Selection` | None |
+| `Prediction Selection` | `Outcome X` → `Stake Selection` | None |
+| `Stake Selection` | `Custom` → `Custom Stake Input` | None |
+| `Custom Stake Input` | User input → `Prediction Confirmation` | Validate stake amount |
+| `Prediction Confirmation` | `Confirm` → `Prediction Locked` | Insert prediction and stake into DB |
+| `Resolver Job` | Tick | Auto | Check deadlines, resolve duels, update reputation |
+
+---
+
+## DATA
+
+### 1. Users Table
+```sql
+CREATE TABLE users (
+  tg_id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  reputation INTEGER DEFAULT 1000 CHECK(reputation >= 0),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 2. Events Table
+```sql
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT CHECK(type IN ('crypto', 'sports', 'game', 'weather', 'other')),
+  source_kind TEXT CHECK(source_kind IN ('api', 'manual')),
+  source_ref TEXT NOT NULL,
+  event_at DATETIME NOT NULL
+);
+```
+
+### 3. Duels Table
+```sql
+CREATE TABLE duels (
+  id INTEGER PRIMARY KEY,
+  creator_tg_id INTEGER NOT NULL REFERENCES users(tg_id),
+  event_id INTEGER NOT NULL REFERENCES events(id),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  deadline DATETIME NOT NULL,
+  status TEXT CHECK(status IN ('open', 'resolved', 'cancelled')),
+  outcome TEXT,
+  resolved_at DATETIME,
+  FOREIGN KEY (creator_tg_id) REFERENCES users(tg_id)
+);
+```
+
+### 4. Predictions Table
+```sql
+CREATE TABLE predictions (
+  id INTEGER PRIMARY KEY,
+  duel_id INTEGER NOT NULL REFERENCES duels(id),
+  user_tg_id INTEGER NOT NULL REFERENCES users(tg_id),
+  outcome TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (duel_id, user_tg_id)
+);
+```
+
+### 5. Stakes Table
+```sql
+CREATE TABLE stakes (
+  id INTEGER PRIMARY KEY,
+  prediction_id INTEGER NOT NULL REFERENCES predictions(id),
+  amount INTEGER NOT NULL CHECK(amount >= 0),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 6. Leaderboard View
+```sql
+CREATE VIEW v_leaderboard AS
+SELECT 
+  u.tg_id,
+  u.name AS display_name,
+  u.reputation,
+  RANK() OVER (ORDER BY u.reputation DESC) AS rank
+FROM users u
+ORDER BY u.reputation DESC;
+```
+
+---
+
+## ACCEPTANCE NOTES
+
+1. **Auto-Resolve Logic**:
+   - Resolver tick runs every 60s, resolving duels with `deadline <= now`.
+   - Reputation updates use `MAX(0, current_reputation + stake * (1 if correct else -1))`.
+
+2. **Admin Commands**:
+   - `/admin_resolve` allows manual resolution with outcome validation.
+   - `/admin_event` creates/updates events with source_kind and source_ref.
+
+3. **Event Source Handling**:
+   - Events have `source_kind` (api/manual) and `source_ref` for API queries.
+   - Admins can create manual events via `/admin_event`.
+
+4. **Cancelled Duels**:
+   - Admin can resolve with `cancel` outcome, refunding stakes and leaving reputation unchanged.
+
+5. **Resolver Resilience**:
+   - On restart, resolver re-scans all unresolved duels to ensure no missed resolutions.
+
+6. **Data Model**:
+   - Defined tables for users, events, duels, predictions, stakes, and leaderboard view.
+
+7. **Reputation Floor**:
+   - Reputation cannot drop below 0; negative deltas are clamped.
+
+8. **Prediction Replacement**:
+   - Users can replace predictions before deadline via atomic transaction.
+
+9. **Deadline Race Condition**:
+   - On prediction/stake submission, check `deadline > now` to prevent late entries.
+
+10. **Timezone Handling**:
+    - Deadlines stored in UTC; rendered in user's local time based on Telegram language.
+
+11. **External Dependencies**:
+    - Crypto: CoinGecko, Sports: API-Sports, Weather: OpenWeatherMap.
+    - SQLite for persistence, Telegram Bot API for messaging.
+
+12. **Non-Goals**:
+    - No real-crypto staking, live scores, private challenges, or social sharing.
+
+13. **Feature Traceability**:
+    - All General features mapped to design sections (see traceability table in UX Spec).
