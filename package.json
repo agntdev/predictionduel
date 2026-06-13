@@ -1,0 +1,22 @@
+{
+  "name": "predictionduel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Telegram bot for prediction duels on crypto, sports, and events",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "grammy": "^1.43.0",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/sql.js": "^1.4.11",
+    "typescript": "^5.8.0"
+  }
+}
