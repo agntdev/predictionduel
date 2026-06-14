@@ -4,11 +4,13 @@ import {
   resolveDuel,
   type ResolvableDuel,
 } from "./db/resolver.js";
+import { resolveEventOutcome } from "./external/index.js";
 
 const TICK_INTERVAL_MS = 30_000;
 
-function determineOutcome(_duel: ResolvableDuel): string | null {
-  return null;
+async function determineOutcome(duel: ResolvableDuel): Promise<string | null> {
+  if (duel.source_kind !== "api" || !duel.source_ref) return null;
+  return resolveEventOutcome(duel.event_type, duel.source_ref);
 }
 
 async function tick(): Promise<void> {
@@ -17,7 +19,7 @@ async function tick(): Promise<void> {
 
     for (const duel of duels) {
       try {
-        const outcome = determineOutcome(duel);
+        const outcome = await determineOutcome(duel);
         if (outcome !== null) {
           resolveDuel(duel.duel_id, outcome);
           console.log(

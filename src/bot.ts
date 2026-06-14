@@ -8,6 +8,8 @@ import {
   getOpenDuels,
 } from "./db/predictions.js";
 import { getState, resetState, transition } from "./state.js";
+import { searchEvents } from "./external/index.js";
+import { insertEvent } from "./db/events.js";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -647,6 +649,45 @@ bot.on("callback_query", async (ctx: Context) => {
 
     await ctx.answerCallbackQuery();
     await ctx.reply(prompts[category] ?? "🔍 Enter a search term to find an event:");
+  } else if (data.startsWith("ev:sel:")) {
+    const chatId = ctx.chat?.id;
+    if (!chatId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const stateCtx = getState(chatId);
+    if (stateCtx.state !== "new_duel_event_selection") {
+      await ctx.answerCallbackQuery({ text: "This selection is no longer active. Use /newduel to start." });
+      return;
+    }
+
+    const idx = Number(data.split(":")[2]);
+    const results = stateCtx.eventSearchResults;
+    if (isNaN(idx) || idx < 0 || idx >= results.length) {
+      await ctx.answerCallbackQuery({ text: "Invalid event selection." });
+      return;
+    }
+
+    const selected = results[idx];
+    const eventType = stateCtx.newDuel.eventType ?? "other";
+    const eventName =
+      eventType === "crypto"
+        ? (JSON.parse(selected.sourceRef) as { coinId: string }).coinId
+        : selected.label;
+
+    const eventId = insertEvent(eventName, eventType, "api", selected.sourceRef);
+
+    transition(chatId, "new_duel_title", {
+      newDuel: { eventId, eventName },
+      eventSearchResults: [],
+    });
+
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+      `📌 Selected: *${selected.label}*\n\nEnter a title for your duel:`,
+      { parse_mode: "Markdown" },
+    );
   } else if (data.startsWith("ev:")) {
     await ctx.answerCallbackQuery({ text: "Event selection will be implemented in a follow-up task." });
   } else if (data.startsWith("duel:")) {
@@ -721,11 +762,32 @@ bot.on("message:text", async (ctx: Context) => {
 
     transition(chatId, "new_duel_event_selection", {
       newDuel: { searchTerm: text },
+      eventSearchResults: [],
     });
 
+    const results = await searchEvents(eventType, text);
+
+    if (results.length === 0) {
+      await ctx.reply(
+        `🔍 No ${eventType} events found for *${text}*. Try another search term or use /newduel to restart.`,
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+
+    const currentCtx = getState(chatId);
+    currentCtx.eventSearchResults = results;
+
+    const kb = new InlineKeyboard();
+    for (let i = 0; i < results.length; i++) {
+      kb.text(results[i].label, `ev:sel:${i}`);
+      kb.row();
+    }
+    kb.row().text("Cancel", "cancel:flow");
+
     await ctx.reply(
-      `🔍 Searching for events matching *${text}* in ${eventType}...`,
-      { parse_mode: "Markdown" },
+      `🔍 *${results.length} event(s)* found for "${text}":\nSelect one to proceed:`,
+      { parse_mode: "Markdown", reply_markup: kb },
     );
     return;
   }

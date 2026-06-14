@@ -37,12 +37,15 @@ export interface ChallengeFlow {
   duelId: number;
 }
 
+import type { SearchResult } from "./external/index.js";
+
 export interface ChatContext {
   state: ChatState;
   newDuel: Partial<NewDuelFlow>;
   predict: Partial<PredictFlow>;
   challenge: Partial<ChallengeFlow>;
   lastMessageId: number | null;
+  eventSearchResults: SearchResult[];
 }
 
 const chatStates = new Map<number, ChatContext>();
@@ -54,6 +57,7 @@ function emptyContext(): ChatContext {
     predict: {},
     challenge: {},
     lastMessageId: null,
+    eventSearchResults: [],
   };
 }
 
@@ -84,6 +88,7 @@ export function updateState(chatId: number, patch: Partial<ChatContext>): ChatCo
     predict: { ...current.predict, ...(patch.predict ?? {}) },
     challenge: { ...current.challenge, ...(patch.challenge ?? {}) },
     lastMessageId: patch.lastMessageId ?? current.lastMessageId,
+    eventSearchResults: patch.eventSearchResults ?? current.eventSearchResults,
   };
   chatStates.set(chatId, updated);
   return updated;
@@ -92,7 +97,7 @@ export function updateState(chatId: number, patch: Partial<ChatContext>): ChatCo
 export function transition(
   chatId: number,
   state: ChatState,
-  data?: Partial<Pick<ChatContext, "newDuel" | "predict" | "challenge" | "lastMessageId">>,
+  data?: Partial<Pick<ChatContext, "newDuel" | "predict" | "challenge" | "lastMessageId" | "eventSearchResults">>,
 ): ChatContext {
   return updateState(chatId, { state, ...(data ?? {}) });
 }
