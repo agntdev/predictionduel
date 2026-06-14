@@ -6,6 +6,7 @@ import {
   parseDuelOutcomes,
   replacePrediction,
 } from "./db/predictions.js";
+import { listOpenDuels, countOpenDuels, type DuelListItem } from "./db/duels.js";
 import { getState, resetState, transition } from "./state.js";
 
 const token = process.env.BOT_TOKEN;
@@ -52,7 +53,8 @@ bot.command("newduel", async (ctx: Context) => {
 });
 
 bot.command("duels", async (ctx: Context) => {
-  await ctx.reply("Duel listing will be implemented in a follow-up task.");
+  const locale = ctx.from?.language_code ?? "en";
+  await showDuelsPage(ctx, 0, null, locale);
 });
 
 bot.command("duel", async (ctx: Context) => {
@@ -249,6 +251,132 @@ function escapeCsv(field: string): string {
   return field;
 }
 
+// --- duel listing helpers ---
+
+const DUELS_PER_PAGE = 10;
+const EVENT_TYPES = ["crypto", "sports", "game", "weather", "other"] as const;
+
+function formatDeadline(deadline: string, locale: string): string {
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  const absSeconds = Math.abs(Math.round(diffMs / 1000));
+
+  let relative: string;
+  if (diffMs < 0) {
+    relative = "ended";
+  } else if (absSeconds < 60) {
+    relative = "in <1m";
+  } else if (absSeconds < 3600) {
+    relative = `in ${Math.round(absSeconds / 60)}m`;
+  } else if (absSeconds < 86400) {
+    relative = `in ${Math.round(absSeconds / 3600)}h`;
+  } else {
+    relative = `in ${Math.round(absSeconds / 86400)}d`;
+  }
+
+  const formatted = deadlineDate.toLocaleString(locale, {
+    timeZone: "UTC",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+  return `${formatted} UTC (${relative})`;
+}
+
+function duelsKeyboard(
+  duels: DuelListItem[],
+  page: number,
+  totalPages: number,
+  filter: string | null,
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+
+  for (const duel of duels) {
+    kb.text(`#${duel.duel_id} ${duel.duel_title}`, `duel:open:${duel.duel_id}`);
+    kb.row();
+  }
+
+  const filterLabel = (type: string) =>
+    type === (filter ?? "all") ? `[${type}]` : type;
+
+  kb.text(filterLabel("all"), "cat:filter:all");
+  for (const t of EVENT_TYPES) {
+    kb.text(filterLabel(t), `cat:filter:${t}`);
+  }
+  kb.row();
+
+  if (totalPages > 1) {
+    if (page > 0) {
+      kb.text("« Prev", `duels_page:${page - 1}:${filter ?? "all"}`);
+    }
+    kb.text(`${page + 1}/${totalPages}`, "noop");
+    if (page < totalPages - 1) {
+      kb.text("Next »", `duels_page:${page + 1}:${filter ?? "all"}`);
+    }
+  }
+
+  return kb;
+}
+
+async function showDuelsPage(
+  ctx: Context,
+  page: number,
+  filter: string | null,
+  locale: string,
+  existingMessage?: { chat: { id: number }; message_id: number },
+): Promise<void> {
+  const total = countOpenDuels(filter);
+  const totalPages = Math.max(1, Math.ceil(total / DUELS_PER_PAGE));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+
+  const duels = listOpenDuels(filter, DUELS_PER_PAGE, safePage * DUELS_PER_PAGE);
+
+  const filterLabel = filter ? ` (${filter})` : "";
+  if (duels.length === 0) {
+    const text = `⚔️ *Open Duels*${filterLabel}\n\nNo open duels found.`;
+    const kb = new InlineKeyboard();
+    kb.text("[all]", "cat:filter:all");
+    for (const t of EVENT_TYPES) {
+      kb.text(t, `cat:filter:${t}`);
+    }
+
+    if (existingMessage) {
+      await ctx.api.editMessageText(
+        existingMessage.chat.id,
+        existingMessage.message_id,
+        text,
+        { parse_mode: "Markdown", reply_markup: kb },
+      );
+    } else {
+      await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb });
+    }
+    return;
+  }
+
+  const lines = [`⚔️ *Open Duels*${filterLabel} (${total} total)`, ""];
+  for (const duel of duels) {
+    const deadline = formatDeadline(duel.duel_deadline, locale);
+    lines.push(
+      `⚔️ #${duel.duel_id} · *${duel.duel_title}* · closes ${deadline} · ${duel.prediction_count} picks`,
+    );
+  }
+
+  const text = lines.join("\n");
+  const kb = duelsKeyboard(duels, safePage, totalPages, filter);
+
+  if (existingMessage) {
+    await ctx.api.editMessageText(
+      existingMessage.chat.id,
+      existingMessage.message_id,
+      text,
+      { parse_mode: "Markdown", reply_markup: kb },
+    );
+  } else {
+    await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb });
+  }
+}
+
 // --- prediction callback handler ---
 
 async function handlePredictionCallback(ctx: Context, data: string): Promise<void> {
@@ -415,8 +543,27 @@ bot.on("callback_query", async (ctx: Context) => {
     return;
   }
 
-  if (data.startsWith("cat:")) {
+  if (data.startsWith("cat:filter:")) {
+    const filter = data.slice("cat:filter:".length) || null;
+    const locale = ctx.from?.language_code ?? "en";
+    await ctx.answerCallbackQuery();
+    await showDuelsPage(ctx, 0, filter === "all" ? null : filter, locale, ctx.callbackQuery?.message);
+    return;
+  } else if (data.startsWith("cat:")) {
     await ctx.answerCallbackQuery({ text: "Event type selection will be implemented in a follow-up task." });
+  } else if (data.startsWith("duels_page:")) {
+    const rest = data.slice("duels_page:".length);
+    const idx = rest.indexOf(":");
+    const page = Number(rest.slice(0, idx));
+    const filter = idx >= 0 ? rest.slice(idx + 1) : "";
+    const resolvedFilter = filter === "all" || filter === "" ? null : filter;
+    const locale = ctx.from?.language_code ?? "en";
+    await ctx.answerCallbackQuery();
+    await showDuelsPage(ctx, page, resolvedFilter, locale, ctx.callbackQuery?.message);
+    return;
+  } else if (data === "noop") {
+    await ctx.answerCallbackQuery();
+    return;
   } else if (data.startsWith("ev:")) {
     await ctx.answerCallbackQuery({ text: "Event selection will be implemented in a follow-up task." });
   } else if (data.startsWith("duel:")) {
