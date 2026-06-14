@@ -7,11 +7,33 @@ import {
   type ResolvableDuel,
 } from "./db/resolver.js";
 import { bot } from "./bot.js";
+import { fetchCryptoPrice } from "./external/coingecko.js";
+import { fetchMatchResult } from "./external/apisports.js";
+import { fetchWeatherCondition } from "./external/openweather.js";
 
 const TICK_INTERVAL_MS = 30_000;
 
-function determineOutcome(_duel: ResolvableDuel): string | null {
-  return null;
+async function determineOutcome(duel: ResolvableDuel): Promise<string | null> {
+  if (duel.source_kind !== "api" || !duel.source_ref) {
+    return null;
+  }
+
+  switch (duel.event_type) {
+    case "crypto": {
+      const price = await fetchCryptoPrice(duel.source_ref);
+      if (price === null) return null;
+      const symbol = duel.source_ref.toUpperCase();
+      return `${symbol}: $${price.toLocaleString("en-US")}`;
+    }
+    case "sports": {
+      return await fetchMatchResult(duel.source_ref);
+    }
+    case "weather": {
+      return await fetchWeatherCondition(duel.source_ref);
+    }
+    default:
+      return null;
+  }
 }
 
 async function sendUnresolvedNotifications(): Promise<void> {
@@ -52,7 +74,7 @@ async function tick(): Promise<void> {
 
     for (const duel of duels) {
       try {
-        const outcome = determineOutcome(duel);
+        const outcome = await determineOutcome(duel);
         if (outcome !== null) {
           resolveDuel(duel.duel_id, outcome);
           console.log(
