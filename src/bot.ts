@@ -1,4 +1,5 @@
-import { Bot, type Context } from "grammy";
+import { Bot, type Context, InlineKeyboard } from "grammy";
+import { transition, getState } from "./state.js";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -6,6 +7,16 @@ if (!token) {
 }
 
 export const bot = new Bot(token);
+
+const EVENT_CATEGORIES = [
+  { id: "crypto", label: "Crypto" },
+  { id: "sports", label: "Sports" },
+  { id: "game", label: "Game" },
+  { id: "weather", label: "Weather" },
+  { id: "other", label: "Other" },
+] as const;
+
+type EventCategory = (typeof EVENT_CATEGORIES)[number]["id"];
 
 bot.command("start", async (ctx: Context) => {
   await ctx.reply("Welcome to PredictionDuel! Use /help to see available commands.");
@@ -29,7 +40,18 @@ bot.command("help", async (ctx: Context) => {
 });
 
 bot.command("newduel", async (ctx: Context) => {
-  await ctx.reply("New duel creation will be implemented in a follow-up task.");
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  transition(chatId, "new_duel_type", { newDuel: { eventType: "", searchTerm: "", eventId: null, eventName: "", title: "", description: "", deadline: "", outcomes: [] } });
+
+  const keyboard = new InlineKeyboard();
+  for (const cat of EVENT_CATEGORIES) {
+    keyboard.row().text(cat.label, `cat:${cat.id}`);
+  }
+
+  const msg = await ctx.reply("Choose an event category for your duel:", { reply_markup: keyboard });
+  transition(chatId, "new_duel_type", { lastMessageId: msg.message_id });
 });
 
 bot.command("duels", async (ctx: Context) => {
@@ -84,7 +106,34 @@ bot.on("callback_query", async (ctx: Context) => {
   }
 
   if (data.startsWith("cat:")) {
-    await ctx.answerCallbackQuery({ text: "Event type selection will be implemented in a follow-up task." });
+    const chatId = ctx.chat?.id;
+    if (!chatId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const typeId = data.slice(4) as EventCategory;
+
+    if (!EVENT_CATEGORIES.some((c) => c.id === typeId)) {
+      await ctx.answerCallbackQuery({ text: "Invalid event category." });
+      return;
+    }
+
+    const current = getState(chatId);
+    transition(chatId, "new_duel_search_term", {
+      newDuel: { eventType: typeId },
+    });
+
+    if (current.lastMessageId) {
+      try {
+        await ctx.api.deleteMessage(chatId, current.lastMessageId);
+      } catch {
+        // ignore deletion errors
+      }
+    }
+
+    await ctx.answerCallbackQuery({ text: `Category: ${typeId}` });
+    const msg = await ctx.reply("Now send a search term to find events (e.g. 'bitcoin', 'world cup'):");
+    transition(chatId, "new_duel_search_term", { lastMessageId: msg.message_id });
   } else if (data.startsWith("ev:")) {
     await ctx.answerCallbackQuery({ text: "Event selection will be implemented in a follow-up task." });
   } else if (data.startsWith("pick:")) {
