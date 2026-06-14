@@ -13,6 +13,13 @@ export interface ResolvableDuel {
   possible_outcomes: string | null;
 }
 
+export interface UnresolvedDuel {
+  duel_id: number;
+  duel_title: string;
+  creator_tg_id: number;
+  deadline: string;
+}
+
 export function getOpenDuelsPastDeadline(): ResolvableDuel[] {
   const db = getDb();
   return db
@@ -49,4 +56,29 @@ export function resolveDuel(duelId: number, outcome: string): void {
   db.prepare(
     "UPDATE duels SET status = 'resolved', outcome = ?, resolved_at = datetime('now') WHERE id = ?"
   ).run(outcome, duelId);
+}
+
+export function getDuelsNeedingNotification(): UnresolvedDuel[] {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT
+        id          AS duel_id,
+        title       AS duel_title,
+        creator_tg_id,
+        deadline
+      FROM duels
+      WHERE status = 'open'
+        AND deadline < datetime('now', '-1 hour')
+        AND notification_sent_at IS NULL
+      ORDER BY deadline ASC`
+    )
+    .all() as UnresolvedDuel[];
+}
+
+export function markDuelNotified(duelId: number): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE duels SET notification_sent_at = datetime('now') WHERE id = ?"
+  ).run(duelId);
 }

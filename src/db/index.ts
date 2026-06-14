@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { ALL_SCHEMA_SQL } from "./schema.js";
+import { ALL_SCHEMA_SQL, MIGRATE_DUELS_NOTIFICATION } from "./schema.js";
 
 let _db: Database.Database | undefined;
 
@@ -18,6 +18,12 @@ export function initSchema(db: Database.Database = getDb()): void {
       db.exec(sql);
     }
   })();
+
+  try {
+    db.exec(MIGRATE_DUELS_NOTIFICATION);
+  } catch {
+    // column already exists — migration already applied
+  }
 }
 
 export function closeDb(): void {

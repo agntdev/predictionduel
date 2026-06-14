@@ -1,9 +1,12 @@
 import {
   getOpenDuelsPastDeadline,
+  getDuelsNeedingNotification,
+  markDuelNotified,
   updateLastResolverCheck,
   resolveDuel,
   type ResolvableDuel,
 } from "./db/resolver.js";
+import { bot } from "./bot.js";
 
 const TICK_INTERVAL_MS = 30_000;
 
@@ -11,8 +14,40 @@ function determineOutcome(_duel: ResolvableDuel): string | null {
   return null;
 }
 
+async function sendUnresolvedNotifications(): Promise<void> {
+  const adminTgIdStr = process.env.ADMIN_TG_ID;
+  const adminTgId = adminTgIdStr ? Number(adminTgIdStr) : null;
+
+  const duels = getDuelsNeedingNotification();
+
+  for (const duel of duels) {
+    const msg =
+      `⚠️ Duel #${duel.duel_id} "${duel.duel_title}" has been unresolved ` +
+      `for over 1 hour (deadline: ${duel.deadline}).`;
+
+    if (adminTgId && !isNaN(adminTgId)) {
+      try {
+        await bot.api.sendMessage(adminTgId, msg);
+      } catch (err) {
+        console.error(`Resolver: Failed to notify admin about duel #${duel.duel_id}:`, err);
+      }
+    }
+
+    try {
+      await bot.api.sendMessage(duel.creator_tg_id, msg);
+    } catch (err) {
+      console.error(`Resolver: Failed to notify creator ${duel.creator_tg_id} about duel #${duel.duel_id}:`, err);
+    }
+
+    markDuelNotified(duel.duel_id);
+    console.log(`Resolver: Sent 1-hour unresolved notification for duel #${duel.duel_id}`);
+  }
+}
+
 async function tick(): Promise<void> {
   try {
+    await sendUnresolvedNotifications();
+
     const duels = getOpenDuelsPastDeadline();
 
     for (const duel of duels) {
