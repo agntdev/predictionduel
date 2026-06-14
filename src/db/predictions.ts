@@ -158,3 +158,29 @@ export function getOpenDuels(eventType?: string, limit: number = 30): OpenDuelRo
 
   return db.prepare(sql).all(...params) as OpenDuelRow[];
 }
+
+export function createDuel(params: {
+  creatorTgId: number;
+  eventId: number | null;
+  title: string;
+  description: string | null;
+  deadline: string;
+  possibleOutcomes: string[];
+}): DuelRow {
+  const db = getDb();
+  const outcomesStr = params.possibleOutcomes.join(",");
+  const result = db
+    .prepare(
+      `INSERT INTO duels (creator_tg_id, event_id, title, description, deadline, possible_outcomes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      params.creatorTgId,
+      params.eventId,
+      params.title,
+      params.description,
+      params.deadline,
+      outcomesStr,
+    );
+  return getDuelById(Number(result.lastInsertRowid))!;
+}
