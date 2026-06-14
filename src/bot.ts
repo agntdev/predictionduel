@@ -6,6 +6,7 @@ import {
   parseDuelOutcomes,
   replacePrediction,
   getOpenDuels,
+  createDuel,
 } from "./db/predictions.js";
 import { getState, resetState, transition } from "./state.js";
 import type { NewDuelFlow } from "./state.js";
@@ -338,6 +339,12 @@ function descriptionKeyboard(): InlineKeyboard {
     .text("Skip description", "desc:skip");
 }
 
+function newDuelConfirmationKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Confirm", "newduel_conf:confirm")
+    .text("Cancel", "newduel_conf:cancel");
+}
+
 function duelsFilterKeyboard(active?: string): InlineKeyboard {
   const types = [
     { label: "Crypto", value: "crypto" },
@@ -648,6 +655,8 @@ bot.on("callback_query", async (ctx: Context) => {
 
   if (data === "desc:skip") {
     await handleDescriptionSkip(ctx);
+  } else if (data.startsWith("newduel_conf:")) {
+    await handleNewDuelConfirmationCallback(ctx, data);
   } else if (data.startsWith("cat:")) {
     const chatId = ctx.chat?.id;
     if (!chatId) {
@@ -847,15 +856,17 @@ bot.on("message:text", async (ctx: Context) => {
 
     const newDuel = getState(chatId).newDuel;
     const summary = buildNewDuelSummary(newDuel);
-    await ctx.reply(summary, { parse_mode: "Markdown" });
+    await ctx.reply(summary, {
+      parse_mode: "Markdown",
+      reply_markup: newDuelConfirmationKeyboard(),
+    });
     return;
   }
 
   if (stateCtx.state === "new_duel_confirming") {
     await ctx.reply(
-      "Your duel summary is shown above. Confirmation and creation will be finalized in a follow-up task. Use /newduel to start a new duel.",
+      "Please use the Confirm or Cancel buttons above to finalize your duel.",
     );
-    resetState(chatId);
     return;
   }
 
@@ -1013,6 +1024,63 @@ async function handleDescriptionSkip(ctx: Context): Promise<void> {
   );
 }
 
+async function handleNewDuelConfirmationCallback(ctx: Context, data: string): Promise<void> {
+  const chatId = ctx.chat?.id;
+  const userId = ctx.from?.id;
+  if (!chatId || !userId) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  const stateCtx = getState(chatId);
+
+  if (stateCtx.state !== "new_duel_confirming") {
+    await ctx.answerCallbackQuery({ text: "This action is no longer active. Use /newduel to start." });
+    resetState(chatId);
+    return;
+  }
+
+  if (data === "newduel_conf:cancel") {
+    resetState(chatId);
+    await ctx.answerCallbackQuery({ text: "Duel creation cancelled." });
+    await ctx.reply("❌ Duel creation cancelled. Use /newduel to start again.");
+    return;
+  }
+
+  if (data === "newduel_conf:confirm") {
+    const newDuel = stateCtx.newDuel;
+    if (!newDuel.title || !newDuel.deadline || !newDuel.outcomes || newDuel.outcomes.length === 0) {
+      await ctx.answerCallbackQuery({ text: "Duel details are incomplete. Please start over with /newduel." });
+      resetState(chatId);
+      return;
+    }
+
+    const duel = createDuel({
+      creatorTgId: userId,
+      eventId: newDuel.eventId ?? null,
+      title: newDuel.title,
+      description: newDuel.description ?? null,
+      deadline: newDuel.deadline,
+      possibleOutcomes: newDuel.outcomes,
+    });
+
+    resetState(chatId);
+    await ctx.answerCallbackQuery({ text: "Duel created!" });
+    await ctx.reply(
+      `✅ Duel #${duel.id} created!\n\n` +
+      `📝 *${duel.title}*\n` +
+      `📂 Category: ${newDuel.eventType ?? "unknown"}\n` +
+      `⏳ Deadline: ${duel.deadline.replace("T", " ").slice(0, 19)} UTC\n` +
+      `🎯 Outcomes: ${newDuel.outcomes.join(", ")}\n\n` +
+      `Share it with /duel\\_${duel.id} or list all duels with /duels`,
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+
+  await ctx.answerCallbackQuery({ text: `Unknown confirmation action: ${data}` });
+}
+
 function buildNewDuelSummary(newDuel: Partial<NewDuelFlow>): string {
   const lines: string[] = ["📋 *New Duel Summary*\n"];
   if (newDuel.title) lines.push(`📝 Title: ${newDuel.title}`);
@@ -1024,7 +1092,7 @@ function buildNewDuelSummary(newDuel: Partial<NewDuelFlow>): string {
   if (newDuel.outcomes && newDuel.outcomes.length > 0) {
     lines.push(`🎯 Outcomes: ${newDuel.outcomes.join(", ")}`);
   }
-  lines.push("\n_Duel creation will be finalized in a follow-up task._");
+  lines.push("\n_Confirm to create this duel, or cancel to discard._");
   return lines.join("\n");
 }
 
