@@ -9,7 +9,8 @@ export type ChatState =
   | "new_duel_confirming"
   | "predict_pick"
   | "predict_stake"
-  | "predict_confirming";
+  | "predict_confirming"
+  | "challenge_created";
 
 export interface NewDuelFlow {
   eventType: string;
@@ -28,10 +29,18 @@ export interface PredictFlow {
   stake: number;
 }
 
+export interface ChallengeFlow {
+  challengerTgId: number;
+  challengerName: string;
+  targetTgId: number;
+  targetName: string;
+}
+
 export interface ChatContext {
   state: ChatState;
   newDuel: Partial<NewDuelFlow>;
   predict: Partial<PredictFlow>;
+  challenge: Partial<ChallengeFlow>;
   lastMessageId: number | null;
 }
 
@@ -42,6 +51,7 @@ function emptyContext(): ChatContext {
     state: "idle",
     newDuel: {},
     predict: {},
+    challenge: {},
     lastMessageId: null,
   };
 }
@@ -71,6 +81,7 @@ export function updateState(chatId: number, patch: Partial<ChatContext>): ChatCo
     state: patch.state ?? current.state,
     newDuel: { ...current.newDuel, ...(patch.newDuel ?? {}) },
     predict: { ...current.predict, ...(patch.predict ?? {}) },
+    challenge: { ...current.challenge, ...(patch.challenge ?? {}) },
     lastMessageId: patch.lastMessageId ?? current.lastMessageId,
   };
   chatStates.set(chatId, updated);
@@ -80,7 +91,7 @@ export function updateState(chatId: number, patch: Partial<ChatContext>): ChatCo
 export function transition(
   chatId: number,
   state: ChatState,
-  data?: Partial<Pick<ChatContext, "newDuel" | "predict" | "lastMessageId">>,
+  data?: Partial<Pick<ChatContext, "newDuel" | "predict" | "challenge" | "lastMessageId">>,
 ): ChatContext {
   return updateState(chatId, { state, ...(data ?? {}) });
 }

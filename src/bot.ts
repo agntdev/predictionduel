@@ -1,11 +1,12 @@
 import { Bot, type Context, InlineKeyboard } from "grammy";
-import { registerUser } from "./db/users.js";
+import { registerUser, getUserByName } from "./db/users.js";
 import {
   getDuelById,
   parseDuelOutcomes,
   replacePrediction,
 } from "./db/predictions.js";
 import { getState, resetState, transition } from "./state.js";
+import type { ChallengeFlow } from "./state.js";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -124,7 +125,49 @@ bot.command("leaderboard", async (ctx: Context) => {
 });
 
 bot.command("challenge", async (ctx: Context) => {
-  await ctx.reply("Challenge will be implemented in a follow-up task.");
+  const chatId = ctx.chat?.id;
+  const challengerId = ctx.from?.id;
+  const challengerName = ctx.from?.first_name ?? "Unknown";
+  if (!chatId || !challengerId) {
+    await ctx.reply("Could not identify your account. Please try again.");
+    return;
+  }
+
+  const match = String(ctx.match ?? "").trim().replace(/^@/, "");
+  if (!match) {
+    await ctx.reply("Usage: /challenge <username>");
+    return;
+  }
+
+  const target = getUserByName(match);
+  if (!target) {
+    await ctx.reply(
+      `User "${match}" is not registered. They need to /start first.`,
+    );
+    return;
+  }
+
+  if (target.tg_id === challengerId) {
+    await ctx.reply("You cannot challenge yourself.");
+    return;
+  }
+
+  registerUser(challengerId, challengerName);
+
+  transition(chatId, "challenge_created", {
+    challenge: {
+      challengerTgId: challengerId,
+      challengerName,
+      targetTgId: target.tg_id,
+      targetName: target.name,
+    },
+  });
+
+  await ctx.reply(
+    `⚔️ *${challengerName}* has challenged *${target.name}* to a prediction duel!\n\n` +
+    `Awaiting ${target.name}'s response…`,
+    { parse_mode: "Markdown", reply_markup: challengeKeyboard(target.tg_id) },
+  );
 });
 
 bot.command("stats", async (ctx: Context) => {
@@ -173,6 +216,12 @@ function confirmKeyboard(): InlineKeyboard {
     .text("Confirm", "confirm:stake")
     .row()
     .text("Cancel", "cancel:flow");
+}
+
+function challengeKeyboard(targetTgId: number): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Accept", `challenge:accept:${targetTgId}`)
+    .text("Decline", `challenge:decline:${targetTgId}`);
 }
 
 // --- prediction callback handler ---
@@ -314,6 +363,61 @@ async function handlePredictionCallback(ctx: Context, data: string): Promise<voi
   await ctx.answerCallbackQuery({ text: `Unknown prediction action: ${data}` });
 }
 
+async function handleChallengeCallback(ctx: Context, data: string): Promise<void> {
+  const chatId = ctx.chat?.id;
+  const userId = ctx.from?.id;
+  if (!chatId || !userId) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  const stateCtx = getState(chatId);
+  const challenge = stateCtx.challenge as ChallengeFlow;
+
+  if (!challenge.targetTgId || !challenge.challengerTgId) {
+    await ctx.answerCallbackQuery({ text: "No active challenge in this chat." });
+    return;
+  }
+
+  if (data.startsWith("challenge:accept:")) {
+    const targetTgId = Number(data.split(":")[2]);
+    if (userId !== challenge.targetTgId) {
+      await ctx.answerCallbackQuery({
+        text: `Only ${challenge.targetName} can accept this challenge.`,
+      });
+      return;
+    }
+
+    resetState(chatId);
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+      `✅ *${challenge.challengerName}* vs *${challenge.targetName}* — challenge accepted!\n\n` +
+      `It's on! Use /newduel to set up the duel, or the challenger can create one now.`,
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+
+  if (data.startsWith("challenge:decline:")) {
+    const targetTgId = Number(data.split(":")[2]);
+
+    if (userId !== challenge.targetTgId && userId !== challenge.challengerTgId) {
+      await ctx.answerCallbackQuery({
+        text: "Only the participants can decline this challenge.",
+      });
+      return;
+    }
+
+    resetState(chatId);
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+      `❌ Challenge between *${challenge.challengerName}* and *${challenge.targetName}* was declined.`,
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+}                                                                                                              
+
 bot.on("callback_query", async (ctx: Context) => {
   const data = ctx.callbackQuery?.data;
   if (!data) {
@@ -338,6 +442,11 @@ bot.on("callback_query", async (ctx: Context) => {
         // ignore deletion errors
       }
     }
+    return;
+  }
+
+  if (data.startsWith("challenge:")) {
+    await handleChallengeCallback(ctx, data);
     return;
   }
 
