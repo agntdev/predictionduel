@@ -269,6 +269,61 @@ function escapeCsv(field: string): string {
   return field;
 }
 
+function validateSearchTerm(term: string, eventType: string): string | null {
+  if (!term) return "Search term cannot be empty.";
+
+  if (term.length > 200) return "Search term is too long (max 200 characters).";
+
+  switch (eventType) {
+    case "crypto": {
+      if (!/^[a-zA-Z0-9 .-]+$/.test(term)) {
+        return "Crypto symbols should only contain letters, numbers, spaces, dots, and hyphens.";
+      }
+      if (term.length < 1 || term.length > 20) {
+        return "Crypto symbol should be 1–20 characters.";
+      }
+      break;
+    }
+    case "sports": {
+      if (!/^[a-zA-Z0-9 '\-.,&]+$/.test(term)) {
+        return "Team or match names should only contain letters, numbers, spaces, and basic punctuation.";
+      }
+      if (term.length > 80) {
+        return "Team or match name is too long (max 80 characters).";
+      }
+      break;
+    }
+    case "game": {
+      if (!/^[a-zA-Z0-9 '\-.,:;!?&]+$/.test(term)) {
+        return "Game titles should only contain letters, numbers, spaces, and basic punctuation.";
+      }
+      if (term.length > 80) {
+        return "Game title is too long (max 80 characters).";
+      }
+      break;
+    }
+    case "weather": {
+      if (!/^[a-zA-Z0-9 ,.\-']+$/.test(term)) {
+        return "City or region should only contain letters, numbers, spaces, commas, dots, hyphens, and apostrophes.";
+      }
+      if (term.length > 80) {
+        return "City or region name is too long (max 80 characters).";
+      }
+      break;
+    }
+    case "other": {
+      if (!/^[a-zA-Z0-9 '\-.,:;!?&]+$/.test(term)) {
+        return "Search term contains invalid characters.";
+      }
+      break;
+    }
+    default:
+      return "Invalid event type.";
+  }
+
+  return null;
+}
+
 // --- prediction callback handler ---
 
 async function handlePredictionCallback(ctx: Context, data: string): Promise<void> {
@@ -494,32 +549,61 @@ bot.on("message:text", async (ctx: Context) => {
   if (!chatId) return;
 
   const stateCtx = getState(chatId);
-  if (stateCtx.state !== "predict_stake") return;
-
-  const text = ctx.message?.text ?? "";
-  const amount = Number(text);
 
   if (ctx.message?.text && ctx.message.text.startsWith("/")) return;
 
-  if (isNaN(amount) || !Number.isInteger(amount) || amount < 0 || amount > 10000) {
-    await ctx.reply("Please enter a valid integer stake amount between 0 and 10000:");
+  if (stateCtx.state === "predict_stake") {
+    const text = ctx.message?.text ?? "";
+    const amount = Number(text);
+
+    if (isNaN(amount) || !Number.isInteger(amount) || amount < 0 || amount > 10000) {
+      await ctx.reply("Please enter a valid integer stake amount between 0 and 10000:");
+      return;
+    }
+
+    const predict = stateCtx.predict;
+    if (!predict.duelId || !predict.predictedOutcome) {
+      resetState(chatId);
+      await ctx.reply("Prediction state is incomplete. Please start over with /predict.");
+      return;
+    }
+
+    transition(chatId, "predict_confirming", { predict: { stake: amount } });
+    const duel = getDuelById(predict.duelId);
+    const duelTitle = duel ? duel.title : `#${predict.duelId}`;
+    await ctx.reply(
+      `⚔️ Duel: ${duelTitle}\n📋 Your pick: *${predict.predictedOutcome}*\n💰 Stake: *${amount}* points\n\nConfirm your prediction?`,
+      { parse_mode: "Markdown", reply_markup: confirmKeyboard() },
+    );
     return;
   }
 
-  const predict = stateCtx.predict;
-  if (!predict.duelId || !predict.predictedOutcome) {
-    resetState(chatId);
-    await ctx.reply("Prediction state is incomplete. Please start over with /predict.");
+  if (stateCtx.state === "new_duel_search_term") {
+    const text = (ctx.message?.text ?? "").trim();
+
+    const eventType = stateCtx.newDuel.eventType;
+    if (!eventType) {
+      resetState(chatId);
+      await ctx.reply("Event type is missing. Please start over with /newduel.");
+      return;
+    }
+
+    const error = validateSearchTerm(text, eventType);
+    if (error) {
+      await ctx.reply(`❌ ${error}\n\nPlease try again or use /newduel to restart.`);
+      return;
+    }
+
+    transition(chatId, "new_duel_event_selection", {
+      newDuel: { searchTerm: text },
+    });
+
+    await ctx.reply(
+      `🔍 Searching for events matching *${text}* in ${eventType}...`,
+      { parse_mode: "Markdown" },
+    );
     return;
   }
-
-  transition(chatId, "predict_confirming", { predict: { stake: amount } });
-  const duel = getDuelById(predict.duelId);
-  const duelTitle = duel ? duel.title : `#${predict.duelId}`;
-  await ctx.reply(
-    `⚔️ Duel: ${duelTitle}\n📋 Your pick: *${predict.predictedOutcome}*\n💰 Stake: *${amount}* points\n\nConfirm your prediction?`,
-    { parse_mode: "Markdown", reply_markup: confirmKeyboard() },
-  );
 });
 
 export function startBot(onStart?: (botInfo: { username: string }) => void): void {
