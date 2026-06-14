@@ -382,6 +382,33 @@ function escapeCsv(field: string): string {
   return field;
 }
 
+function parseDeadline(input: string): Date | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  let normalized = trimmed
+    .replace("T", " ")
+    .replace(/\//g, "-")
+    .replace(/\s+/, " ");
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    normalized += " 23:59";
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(normalized) &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return null;
+  }
+
+  const date = new Date(normalized.replace(" ", "T") + "Z");
+  if (isNaN(date.getTime())) {
+    const fallback = new Date(normalized + " UTC");
+    if (isNaN(fallback.getTime())) return null;
+    return fallback;
+  }
+  return date;
+}
+
 function validateSearchTerm(term: string, eventType: string): string | null {
   if (!term) return "Search term cannot be empty.";
 
@@ -739,7 +766,45 @@ bot.on("message:text", async (ctx: Context) => {
 
     transition(chatId, "new_duel_deadline", { newDuel: { description: raw } });
     await ctx.reply(
-      `📝 Title: *${stateCtx.newDuel.title}*\n📄 Description: ${raw || "(none)"}\n\n⏳ Deadline input will be implemented in a follow-up task.`,
+      `📝 Title: *${stateCtx.newDuel.title}*\n📄 Description: ${raw || "(none)"}\n\n⏳ Enter the deadline (UTC) in format:\n` +
+      `\`YYYY-MM-DD HH:MM\`\nExample: \`2025-12-31 23:59\`\n` +
+      `The deadline must be in the future.`,
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+
+  if (stateCtx.state === "new_duel_deadline") {
+    const raw = (ctx.message?.text ?? "").trim();
+
+    const deadline = parseDeadline(raw);
+    if (!deadline) {
+      await ctx.reply(
+        `❌ Invalid date/time format. Please use:\n` +
+        `\`YYYY-MM-DD HH:MM\` (e.g., \`2025-12-31 23:59\`)`,
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+
+    const now = new Date();
+    if (deadline <= now) {
+      const nowStr = now.toISOString().replace("T", " ").slice(0, 19);
+      await ctx.reply(
+        `❌ The deadline must be in the future.\n` +
+        `Current UTC time: \`${nowStr}\`\n\n` +
+        `Please enter a valid future deadline:\n\`YYYY-MM-DD HH:MM\``,
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+
+    transition(chatId, "new_duel_outcomes", {
+      newDuel: { deadline: deadline.toISOString() },
+    });
+    await ctx.reply(
+      `✅ Deadline set: *${deadline.toISOString().replace("T", " ").slice(0, 19)} UTC*\n\n` +
+      `Outcome options will be implemented in a follow-up task.`,
       { parse_mode: "Markdown" },
     );
     return;
@@ -892,7 +957,9 @@ async function handleDescriptionSkip(ctx: Context): Promise<void> {
   await ctx.answerCallbackQuery();
   transition(chatId, "new_duel_deadline", { newDuel: { description: "" } });
   await ctx.reply(
-    `📝 Title: *${stateCtx.newDuel.title}*\n📄 Description: (none)\n\n⏳ Deadline input will be implemented in a follow-up task.`,
+    `📝 Title: *${stateCtx.newDuel.title}*\n📄 Description: (none)\n\n⏳ Enter the deadline (UTC) in format:\n` +
+    `\`YYYY-MM-DD HH:MM\`\nExample: \`2025-12-31 23:59\`\n` +
+    `The deadline must be in the future.`,
     { parse_mode: "Markdown" },
   );
 }
