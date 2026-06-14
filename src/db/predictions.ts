@@ -127,3 +127,34 @@ export function parseDuelOutcomes(duel: DuelRow): string[] {
   if (!duel.possible_outcomes) return ["Yes", "No"];
   return duel.possible_outcomes.split(",").map((o) => o.trim()).filter(Boolean);
 }
+
+export interface OpenDuelRow {
+  id: number;
+  creator_tg_id: number;
+  event_id: number | null;
+  title: string;
+  description: string | null;
+  deadline: string;
+  status: string;
+  outcome: string | null;
+  resolved_at: string | null;
+  possible_outcomes: string | null;
+  event_type: string | null;
+}
+
+export function getOpenDuels(eventType?: string, limit: number = 30): OpenDuelRow[] {
+  const db = getDb();
+  const validTypes = ["crypto", "sports", "game", "weather", "other"];
+  let sql = `SELECT d.*, e.type AS event_type FROM duels d LEFT JOIN events e ON e.id = d.event_id WHERE d.status = 'open' AND d.deadline > datetime('now')`;
+  const params: (string | number)[] = [];
+
+  if (eventType && validTypes.includes(eventType)) {
+    sql += ` AND e.type = ?`;
+    params.push(eventType);
+  }
+
+  sql += ` ORDER BY d.deadline ASC LIMIT ?`;
+  params.push(limit);
+
+  return db.prepare(sql).all(...params) as OpenDuelRow[];
+}
