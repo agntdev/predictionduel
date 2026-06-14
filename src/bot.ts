@@ -8,6 +8,7 @@ import {
   getOpenDuels,
 } from "./db/predictions.js";
 import { getState, resetState, transition } from "./state.js";
+import type { NewDuelFlow } from "./state.js";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -804,9 +805,57 @@ bot.on("message:text", async (ctx: Context) => {
     });
     await ctx.reply(
       `✅ Deadline set: *${deadline.toISOString().replace("T", " ").slice(0, 19)} UTC*\n\n` +
-      `Outcome options will be implemented in a follow-up task.`,
+      `📋 Enter 2–6 distinct outcome options, separated by commas:\n` +
+      `Example: \`Yes, No, Maybe\``,
       { parse_mode: "Markdown" },
     );
+    return;
+  }
+
+  if (stateCtx.state === "new_duel_outcomes") {
+    const raw = (ctx.message?.text ?? "").trim();
+    if (!raw) {
+      await ctx.reply(
+        "Please enter 2–6 distinct outcome options, separated by commas:\n" +
+        "Example: `Yes, No, Maybe`",
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+
+    const outcomes = raw
+      .split(/[,\n]/)
+      .map((o) => o.trim())
+      .filter(Boolean);
+
+    if (outcomes.length < 2 || outcomes.length > 6) {
+      await ctx.reply(
+        `❌ You must provide between 2 and 6 outcome options. You entered ${outcomes.length}. Please try again:`,
+      );
+      return;
+    }
+
+    const unique = new Set(outcomes.map((o) => o.toLowerCase()));
+    if (unique.size !== outcomes.length) {
+      await ctx.reply(
+        "❌ All outcome options must be distinct (case-insensitive). Please try again:",
+      );
+      return;
+    }
+
+    transition(chatId, "new_duel_confirming", { newDuel: { outcomes } });
+
+    const newDuel = getState(chatId).newDuel;
+    const summary = buildNewDuelSummary(newDuel);
+    await ctx.reply(summary, { parse_mode: "Markdown" });
+    return;
+  }
+
+  if (stateCtx.state === "new_duel_confirming") {
+    await ctx.reply(
+      "Your duel summary is shown above. Confirmation and creation will be finalized in a follow-up task. Use /newduel to start a new duel.",
+    );
+    resetState(chatId);
     return;
   }
 
@@ -962,6 +1011,21 @@ async function handleDescriptionSkip(ctx: Context): Promise<void> {
     `The deadline must be in the future.`,
     { parse_mode: "Markdown" },
   );
+}
+
+function buildNewDuelSummary(newDuel: Partial<NewDuelFlow>): string {
+  const lines: string[] = ["📋 *New Duel Summary*\n"];
+  if (newDuel.title) lines.push(`📝 Title: ${newDuel.title}`);
+  if (newDuel.description) lines.push(`📄 Description: ${newDuel.description}`);
+  if (newDuel.eventType) lines.push(`📂 Category: ${newDuel.eventType}`);
+  if (newDuel.deadline) {
+    lines.push(`⏳ Deadline: ${newDuel.deadline.replace("T", " ").slice(0, 19)} UTC`);
+  }
+  if (newDuel.outcomes && newDuel.outcomes.length > 0) {
+    lines.push(`🎯 Outcomes: ${newDuel.outcomes.join(", ")}`);
+  }
+  lines.push("\n_Duel creation will be finalized in a follow-up task._");
+  return lines.join("\n");
 }
 
 function formatDuelsList(duels: ReturnType<typeof getOpenDuels>, activeFilter?: string): string {
