@@ -1,5 +1,5 @@
 import { Bot, type Context, InlineKeyboard } from "grammy";
-import { registerUser } from "./db/users.js";
+import { getLeaderboard, registerUser } from "./db/users.js";
 import {
   getDuelById,
   parseDuelOutcomes,
@@ -120,7 +120,21 @@ bot.command("history", async (ctx: Context) => {
 });
 
 bot.command("leaderboard", async (ctx: Context) => {
-  await ctx.reply("Leaderboard will be implemented in a follow-up task.");
+  const entries = getLeaderboard(10);
+
+  if (entries.length === 0) {
+    await ctx.reply("🏆 *Leaderboard*\n\nNo users yet. Be the first to join with /start!", { parse_mode: "Markdown" });
+    return;
+  }
+
+  const lines = entries.map(
+    (e) => `#${e.rank} *${e.name}* — ${e.reputation} pts`,
+  );
+
+  await ctx.reply(
+    `🏆 *Leaderboard*\n\n${lines.join("\n")}`,
+    { parse_mode: "Markdown" },
+  );
 });
 
 bot.command("challenge", async (ctx: Context) => {
