@@ -5,6 +5,7 @@ import {
   getAllUserPredictions,
   parseDuelOutcomes,
   replacePrediction,
+  getOpenDuels,
 } from "./db/predictions.js";
 import { getState, resetState, transition } from "./state.js";
 
@@ -58,7 +59,17 @@ bot.command("newduel", async (ctx: Context) => {
 });
 
 bot.command("duels", async (ctx: Context) => {
-  await ctx.reply("Duel listing will be implemented in a follow-up task.");
+  const arg = String(ctx.match ?? "").trim();
+  const validTypes = ["crypto", "sports", "game", "weather", "other"];
+  const eventType = validTypes.includes(arg) ? arg : undefined;
+
+  const duels = getOpenDuels(eventType);
+  const msg = formatDuelsList(duels, eventType);
+
+  await ctx.reply(msg, {
+    parse_mode: "Markdown",
+    reply_markup: duelsFilterKeyboard(eventType),
+  });
 });
 
 bot.command("duel", async (ctx: Context) => {
@@ -319,6 +330,45 @@ function challengeKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("Accept", "chl:accept")
     .text("Decline", "chl:decline");
+}
+
+function duelsFilterKeyboard(active?: string): InlineKeyboard {
+  const types = [
+    { label: "Crypto", value: "crypto" },
+    { label: "Sports", value: "sports" },
+    { label: "Games", value: "game" },
+    { label: "Weather", value: "weather" },
+    { label: "Other", value: "other" },
+  ];
+  const kb = new InlineKeyboard();
+  for (let i = 0; i < types.length; i++) {
+    const prefix = active === types[i].value ? "✅ " : "";
+    kb.text(`${prefix}${types[i].label}`, `duels:filter:${types[i].value}`);
+    if (i % 2 === 1) kb.row();
+  }
+  if (active) {
+    kb.row().text("🔍 All duels", "duels:filter:all");
+  }
+  return kb;
+}
+
+function formatRelativeTime(diffMs: number): string {
+  if (diffMs <= 0) return "ended";
+  const seconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return days === 1 ? "1 day left" : `${days} days left`;
+  }
+  if (hours > 0) {
+    return hours === 1 ? "1 hour left" : `${hours} hours left`;
+  }
+  if (minutes > 0) {
+    return minutes === 1 ? "1 minute left" : `${minutes} minutes left`;
+  }
+  return "ending soon";
 }
 function escapeCsv(field: string): string {
   if (field.includes(",") || field.includes('"') || field.includes("\n")) {
@@ -601,6 +651,8 @@ bot.on("callback_query", async (ctx: Context) => {
     await ctx.answerCallbackQuery({ text: "Event selection will be implemented in a follow-up task." });
   } else if (data.startsWith("duel:")) {
     await ctx.answerCallbackQuery({ text: "Duel card will be implemented in a follow-up task." });
+  } else if (data.startsWith("duels:filter:")) {
+    await handleDuelsFilterCallback(ctx, data);
   } else {
     await ctx.answerCallbackQuery({ text: `Unknown action: ${data}` });
   }
@@ -750,4 +802,64 @@ async function handleChallengeCallback(ctx: Context, data: string): Promise<void
   }
 
   await ctx.answerCallbackQuery({ text: `Unknown challenge action: ${data}` });
+}
+
+async function handleDuelsFilterCallback(ctx: Context, data: string): Promise<void> {
+  const parts = data.split(":");
+  const filter = parts[2];
+  const validTypes = ["crypto", "sports", "game", "weather", "other"];
+
+  await ctx.answerCallbackQuery();
+
+  if (filter === "all") {
+    const duels = getOpenDuels();
+    const msg = formatDuelsList(duels, undefined);
+    await ctx.reply(msg, {
+      parse_mode: "Markdown",
+      reply_markup: duelsFilterKeyboard(),
+    });
+    return;
+  }
+
+  if (!validTypes.includes(filter)) {
+    await ctx.reply("Invalid filter. Usage: /duels [crypto|sports|game|weather|other]");
+    return;
+  }
+
+  const duels = getOpenDuels(filter);
+  const msg = formatDuelsList(duels, filter);
+  await ctx.reply(msg, {
+    parse_mode: "Markdown",
+    reply_markup: duelsFilterKeyboard(filter),
+  });
+}
+
+function formatDuelsList(duels: ReturnType<typeof getOpenDuels>, activeFilter?: string): string {
+  if (duels.length === 0) {
+    const scope = activeFilter ? `${activeFilter} ` : "";
+    return `📭 No open ${scope}duels right now. Create one with /newduel!`;
+  }
+
+  const lines: string[] = [];
+  const now = Date.now();
+
+  for (const duel of duels) {
+    const deadlineMs = new Date(duel.deadline + "Z").getTime();
+    const diffMs = deadlineMs - now;
+    const relative = formatRelativeTime(diffMs);
+    const label = duel.event_type ? `${duel.event_type} ` : "";
+    const utcDeadline = new Date(deadlineMs).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+
+    lines.push(
+      `#${duel.id} — ${duel.title}`,
+      `📂 ${label}| ⏳ ${relative} (${utcDeadline})`,
+      `/duel\\_${duel.id}`,
+    );
+  }
+
+  const header = activeFilter
+    ? `⚔️ *Open ${activeFilter} duels* (${duels.length}):\n`
+    : `⚔️ *Open duels* (${duels.length}):\n`;
+
+  return header + "\n" + lines.join("\n");
 }
