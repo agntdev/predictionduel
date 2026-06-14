@@ -47,3 +47,17 @@ export function registerUser(tgId: number, name: string): UserRow {
     created_at: new Date().toISOString(),
   };
 }
+
+export function getUserById(tgId: number): UserRow | undefined {
+  const db = getDb();
+  return db
+    .prepare("SELECT tg_id, name, reputation, created_at FROM users WHERE tg_id = ?")
+    .get(tgId) as UserRow | undefined;
+}
+
+export function getUserByName(name: string): UserRow | undefined {
+  const db = getDb();
+  return db
+    .prepare("SELECT tg_id, name, reputation, created_at FROM users WHERE name = ?")
+    .get(name) as UserRow | undefined;
+}
