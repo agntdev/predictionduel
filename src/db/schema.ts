@@ -16,15 +16,16 @@ export const CREATE_EVENTS = `CREATE TABLE IF NOT EXISTS events (
 )`;
 
 export const CREATE_DUELS = `CREATE TABLE IF NOT EXISTS duels (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  creator_tg_id  INTEGER NOT NULL REFERENCES users(tg_id),
-  event_id       INTEGER REFERENCES events(id),
-  title          TEXT    NOT NULL,
-  description    TEXT,
-  deadline       TEXT    NOT NULL,
-  status         TEXT    NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'resolved', 'cancelled')),
-  outcome        TEXT,
-  resolved_at    TEXT
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  creator_tg_id      INTEGER NOT NULL REFERENCES users(tg_id),
+  event_id           INTEGER REFERENCES events(id),
+  title              TEXT    NOT NULL,
+  description        TEXT,
+  deadline           TEXT    NOT NULL,
+  status             TEXT    NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'resolved', 'cancelled')),
+  outcome            TEXT,
+  resolved_at        TEXT,
+  possible_outcomes  TEXT
 )`;
 
 export const CREATE_PREDICTIONS = `CREATE TABLE IF NOT EXISTS predictions (
