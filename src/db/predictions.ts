@@ -21,11 +21,47 @@ export interface PredictionRow {
   created_at: string;
 }
 
+export interface PredictionExportRow {
+  duel_id: number;
+  duel_title: string;
+  predicted_outcome: string;
+  stake_amount: number;
+  duel_status: string;
+  duel_deadline: string;
+  prediction_date: string;
+  username: string;
+}
+
 export interface StakeRow {
   id: number;
   prediction_id: number;
   amount: number;
   created_at: string;
+}
+
+export function getAllUserPredictions(userTgId: number): PredictionExportRow[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT
+        d.id          AS duel_id,
+        d.title       AS duel_title,
+        p.outcome     AS predicted_outcome,
+        COALESCE(s.amount, 0) AS stake_amount,
+        d.status      AS duel_status,
+        d.deadline    AS duel_deadline,
+        p.created_at  AS prediction_date,
+        u.name        AS username
+      FROM predictions p
+      JOIN duels d ON d.id = p.duel_id
+      JOIN users u ON u.tg_id = p.user_tg_id
+      LEFT JOIN stakes s ON s.prediction_id = p.id
+      WHERE p.user_tg_id = ?
+      ORDER BY p.created_at DESC`,
+    )
+    .all(userTgId) as PredictionExportRow[];
+
+  return rows;
 }
 
 export function getDuelById(duelId: number): DuelRow | undefined {

@@ -1,7 +1,8 @@
-import { Bot, type Context, InlineKeyboard } from "grammy";
+import { Bot, type Context, InlineKeyboard, InputFile } from "grammy";
 import { getLeaderboard, registerUser } from "./db/users.js";
 import {
   getDuelById,
+  getAllUserPredictions,
   parseDuelOutcomes,
   replacePrediction,
 } from "./db/predictions.js";
@@ -146,7 +147,59 @@ bot.command("stats", async (ctx: Context) => {
 });
 
 bot.command("export", async (ctx: Context) => {
-  await ctx.reply("Export will be implemented in a follow-up task.");
+  const userId = ctx.from?.id;
+  if (!userId) {
+    await ctx.reply("Could not identify your account.");
+    return;
+  }
+
+  const rows = getAllUserPredictions(userId);
+
+  if (rows.length === 0) {
+    await ctx.reply("You have no predictions to export.");
+    return;
+  }
+
+  const headers = [
+    "duel_id",
+    "duel_title",
+    "predicted_outcome",
+    "stake_amount",
+    "duel_status",
+    "duel_deadline",
+    "prediction_date",
+    "username",
+  ];
+
+  const csvLines = [headers.join(",")];
+  for (const row of rows) {
+    const values = [
+      row.duel_id,
+      escapeCsv(row.duel_title),
+      escapeCsv(row.predicted_outcome),
+      row.stake_amount,
+      row.duel_status,
+      row.duel_deadline,
+      row.prediction_date,
+      escapeCsv(row.username),
+    ];
+    csvLines.push(values.join(","));
+  }
+
+  const csvContent = csvLines.join("\n");
+
+  try {
+    await ctx.api.sendDocument(
+      userId,
+      new InputFile(Buffer.from(csvContent, "utf-8"), "predictions.csv"),
+      { caption: `📊 Exported ${rows.length} prediction(s).` },
+    );
+    await ctx.reply("📤 Your predictions have been sent to your DMs.");
+  } catch {
+    await ctx.reply(
+      "❌ Could not send the file to your DMs. Please start a chat with me first using /start.",
+    );
+  }
 });
 
 bot.command("admin_resolve", async (ctx: Context) => {
@@ -187,6 +240,13 @@ function confirmKeyboard(): InlineKeyboard {
     .text("Confirm", "confirm:stake")
     .row()
     .text("Cancel", "cancel:flow");
+}
+
+function escapeCsv(field: string): string {
+  if (field.includes(",") || field.includes('"') || field.includes("\n")) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
 }
 
 // --- prediction callback handler ---
