@@ -332,6 +332,11 @@ function challengeKeyboard(): InlineKeyboard {
     .text("Decline", "chl:decline");
 }
 
+function descriptionKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Skip description", "desc:skip");
+}
+
 function duelsFilterKeyboard(active?: string): InlineKeyboard {
   const types = [
     { label: "Crypto", value: "crypto" },
@@ -613,7 +618,9 @@ bot.on("callback_query", async (ctx: Context) => {
     return;
   }
 
-  if (data.startsWith("cat:")) {
+  if (data === "desc:skip") {
+    await handleDescriptionSkip(ctx);
+  } else if (data.startsWith("cat:")) {
     const chatId = ctx.chat?.id;
     if (!chatId) {
       await ctx.answerCallbackQuery();
@@ -699,6 +706,41 @@ bot.on("message:text", async (ctx: Context) => {
     await ctx.reply(
       `⚔️ Duel: ${duelTitle}\n📋 Your pick: *${predict.predictedOutcome}*\n💰 Stake: *${amount}* points\n\nConfirm your prediction?`,
       { parse_mode: "Markdown", reply_markup: confirmKeyboard() },
+    );
+    return;
+  }
+
+  if (stateCtx.state === "new_duel_event_selection") {
+    transition(chatId, "new_duel_title");
+    await ctx.reply("📝 Enter a title for your duel (1–200 characters):");
+    return;
+  }
+
+  if (stateCtx.state === "new_duel_title") {
+    const raw = (ctx.message?.text ?? "").trim();
+
+    if (!stateCtx.newDuel.title) {
+      if (!raw || raw.length > 200) {
+        await ctx.reply("❌ Title is required and must be 1–200 characters. Please try again:");
+        return;
+      }
+      transition(chatId, "new_duel_title", { newDuel: { title: raw } });
+      await ctx.reply(
+        `✅ Title: *${raw}*\n\n📝 Now enter a description (max 500 characters), or skip:`,
+        { parse_mode: "Markdown", reply_markup: descriptionKeyboard() },
+      );
+      return;
+    }
+
+    if (raw.length > 500) {
+      await ctx.reply("❌ Description must be 500 characters or fewer. Please try again, or skip:");
+      return;
+    }
+
+    transition(chatId, "new_duel_deadline", { newDuel: { description: raw } });
+    await ctx.reply(
+      `📝 Title: *${stateCtx.newDuel.title}*\n📄 Description: ${raw || "(none)"}\n\n⏳ Deadline input will be implemented in a follow-up task.`,
+      { parse_mode: "Markdown" },
     );
     return;
   }
@@ -832,6 +874,27 @@ async function handleDuelsFilterCallback(ctx: Context, data: string): Promise<vo
     parse_mode: "Markdown",
     reply_markup: duelsFilterKeyboard(filter),
   });
+}
+
+async function handleDescriptionSkip(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  const stateCtx = getState(chatId);
+  if (stateCtx.state !== "new_duel_title" || !stateCtx.newDuel.title) {
+    await ctx.answerCallbackQuery({ text: "This action is no longer active. Use /newduel to start." });
+    return;
+  }
+
+  await ctx.answerCallbackQuery();
+  transition(chatId, "new_duel_deadline", { newDuel: { description: "" } });
+  await ctx.reply(
+    `📝 Title: *${stateCtx.newDuel.title}*\n📄 Description: (none)\n\n⏳ Deadline input will be implemented in a follow-up task.`,
+    { parse_mode: "Markdown" },
+  );
 }
 
 function formatDuelsList(duels: ReturnType<typeof getOpenDuels>, activeFilter?: string): string {
