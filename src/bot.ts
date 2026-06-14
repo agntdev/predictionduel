@@ -48,7 +48,13 @@ bot.command("help", async (ctx: Context) => {
 });
 
 bot.command("newduel", async (ctx: Context) => {
-  await ctx.reply("New duel creation will be implemented in a follow-up task.");
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  transition(chatId, "new_duel_type");
+  await ctx.reply("🎯 Choose an event type for your duel:", {
+    reply_markup: categoryKeyboard(),
+  });
 });
 
 bot.command("duels", async (ctx: Context) => {
@@ -242,6 +248,20 @@ function confirmKeyboard(): InlineKeyboard {
     .text("Cancel", "cancel:flow");
 }
 
+function categoryKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Crypto", "cat:crypto")
+    .row()
+    .text("Sports", "cat:sports")
+    .row()
+    .text("Games", "cat:game")
+    .row()
+    .text("Weather", "cat:weather")
+    .row()
+    .text("Other", "cat:other")
+    .row()
+    .text("Cancel", "cancel:flow");
+}
 function escapeCsv(field: string): string {
   if (field.includes(",") || field.includes('"') || field.includes("\n")) {
     return `"${field.replace(/"/g, '""')}"`;
@@ -416,7 +436,39 @@ bot.on("callback_query", async (ctx: Context) => {
   }
 
   if (data.startsWith("cat:")) {
-    await ctx.answerCallbackQuery({ text: "Event type selection will be implemented in a follow-up task." });
+    const chatId = ctx.chat?.id;
+    if (!chatId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const stateCtx = getState(chatId);
+    if (stateCtx.state !== "new_duel_type") {
+      await ctx.answerCallbackQuery({ text: "This action is no longer active. Use /newduel to start." });
+      return;
+    }
+
+    const category = data.split(":")[1];
+    const validCategories = ["crypto", "sports", "game", "weather", "other"];
+    if (!validCategories.includes(category)) {
+      await ctx.answerCallbackQuery({ text: "Invalid event type." });
+      return;
+    }
+
+    transition(chatId, "new_duel_search_term", {
+      newDuel: { eventType: category },
+    });
+
+    const prompts: Record<string, string> = {
+      crypto: "🔍 Enter a crypto symbol (e.g., BTC, ETH) to find an event:",
+      sports: "🔍 Enter a team or match name to find an event:",
+      game: "🔍 Enter a game title or event name to find an event:",
+      weather: "🔍 Enter a city or region to find a weather event:",
+      other: "🔍 Enter a keyword to search for an event:",
+    };
+
+    await ctx.answerCallbackQuery();
+    await ctx.reply(prompts[category] ?? "🔍 Enter a search term to find an event:");
   } else if (data.startsWith("ev:")) {
     await ctx.answerCallbackQuery({ text: "Event selection will be implemented in a follow-up task." });
   } else if (data.startsWith("duel:")) {
