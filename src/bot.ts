@@ -1,4 +1,5 @@
 import { Bot, type Context } from "grammy";
+import { registerUser } from "./db/users.js";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -8,7 +9,18 @@ if (!token) {
 export const bot = new Bot(token);
 
 bot.command("start", async (ctx: Context) => {
-  await ctx.reply("Welcome to PredictionDuel! Use /help to see available commands.");
+  const tgId = ctx.from?.id;
+  const name = ctx.from?.first_name ?? "Unknown";
+  if (!tgId) {
+    await ctx.reply("Could not identify your Telegram account. Please try again.");
+    return;
+  }
+
+  const user = registerUser(tgId, name);
+  await ctx.reply(
+    `Welcome to PredictionDuel, ${user.name}!\n\n` +
+    `Your reputation: ${user.reputation} points. Use /help to see available commands.`,
+  );
 });
 
 bot.command("help", async (ctx: Context) => {
